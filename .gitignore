@@ -10,3 +10,5 @@ qdrant_storage/
 node_modules/
 .DS_Store
 processed_chunks.zip
+data/routing_log.db
+data/routing_log.db

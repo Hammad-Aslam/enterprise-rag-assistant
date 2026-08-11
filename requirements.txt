@@ -8,3 +8,6 @@ sentence-transformers
 qdrant-client
 rank_bm25
 groq
+langgraph
+langchain-core
+yfinance

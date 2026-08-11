@@ -17,7 +17,9 @@ answer doesn't look equally authoritative as a well-grounded one:
      -- a naive 0.6 "high" threshold would be nearly unreachable.
 
   2. CITATION COVERAGE -- what fraction of the answer's sentences
-     carry a valid [SOURCE: n] citation tag.
+     carry a valid citation tag ([SOURCE: n] for document chunks, or
+     [LIVE: TICKER] for live market data, used by Project 2's hybrid
+     synthesis step).
 
   Zero retrieved chunks, or zero valid citations in a non-empty
   answer, are hard floors to "low" -- no formula needed for a
@@ -29,7 +31,14 @@ import re
 from dataclasses import dataclass
 
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
-CITATION_PATTERN = re.compile(r"\[SOURCE:\s*\d+\]")
+# Matches both Project 1's document-only citation format [SOURCE: n]
+# and Project 2's dual-source hybrid format [LIVE: TICKER]. Safe,
+# additive change -- Project 1's own answers never produce [LIVE: ...]
+# tags, so this doesn't alter Project 1's existing behavior, but
+# without it, this module undercounted citation coverage on hybrid
+# answers (a genuine [LIVE: AMD] citation was invisible to the
+# coverage calculation, making a correctly-cited answer look 0% cited).
+CITATION_PATTERN = re.compile(r"\[SOURCE:\s*\d+\]|\[LIVE:\s*[A-Z]+\]")
 
 RELEVANCE_HIGH = 0.35
 RELEVANCE_MEDIUM = 0.10

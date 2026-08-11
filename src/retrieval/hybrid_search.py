@@ -199,10 +199,28 @@ class HybridSearcher:
         )
         return ranked[:top_k]
 
-    def search(self, query: str) -> list[dict]:
-        tickers = self._detect_companies(query)
+    def search(self, query: str, fallback_tickers: set[str] | None = None) -> list[dict]:
+        """fallback_tickers: MERGED with this searcher's own entity
+        detection (union, not override). Started as fallback-only, but
+        testing surfaced a real gap: this searcher's simple
+        string-matching keys off company LEGAL names (e.g. "Alphabet
+        Inc." -> matches "alphabet"), so a query saying "Google" -- the
+        name virtually everyone actually uses -- was silently missed
+        even while OTHER companies in the same multi-company query
+        matched fine, meaning fallback-only never triggered (it only
+        helps when zero companies are detected, not when detection is
+        PARTIALLY wrong). Merging is safe: fallback_tickers are always
+        pre-validated against the known ticker list upstream (in
+        src/agent/router.py), so union only adds true positives, never
+        introduces a bad ticker."""
+        detected = self._detect_companies(query)
+        tickers = set(detected)
+        if fallback_tickers:
+            tickers |= set(fallback_tickers)
+
         if tickers:
-            print(f"  [entity filter] detected companies: {sorted(tickers)}")
+            source = "detected" if detected == tickers else "detected + router fallback merged"
+            print(f"  [entity filter] companies in scope ({source}): {sorted(tickers)}")
 
         dense_results = self._dense_search(query, DENSE_TOP_K, tickers)
         bm25_results = self._bm25_search(query, BM25_TOP_K, tickers)
