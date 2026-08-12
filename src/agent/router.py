@@ -21,6 +21,7 @@ Usage:
 
 import json
 import os
+import time
 from enum import Enum
 
 from dotenv import load_dotenv
@@ -139,32 +140,40 @@ def route_query(query: str) -> RoutingDecision:
 
     client = Groq(api_key=GROQ_API_KEY)
 
-    try:
-        response = client.chat.completions.create(
-            model=ROUTER_MODEL,
-            messages=[
-                {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
-                {"role": "user", "content": query},
-            ],
-            max_tokens=350,  # raised from 200 -- few-shot examples in the
-            # prompt made the model's own reasoning field longer on
-            # average, and 200 was occasionally too tight, truncating
-            # valid JSON mid-generation (observed directly: a
-            # multi-ticker hybrid query hit this exact failure)
-            temperature=0.0,  # deterministic classification, not creative
-            response_format={"type": "json_object"},  # Groq's JSON-mode constraint
-        )
-        raw = response.choices[0].message.content
-        data = json.loads(raw)
-    except Exception as e:
-        # If the router itself fails (truncated JSON, API error, etc.),
-        # fail safe into out_of_scope rather than crashing the whole
-        # agent -- a routing failure should degrade to "I can't answer
-        # that", not take down the request.
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            response = client.chat.completions.create(
+                model=ROUTER_MODEL,
+                messages=[
+                    {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
+                    {"role": "user", "content": query},
+                ],
+                max_tokens=350,
+                temperature=0.0,
+                response_format={"type": "json_object"},
+            )
+            raw = response.choices[0].message.content
+            data = json.loads(raw)
+            last_error = None
+            break
+        except Exception as e:
+            last_error = e
+            is_rate_limit = getattr(e, "status_code", None) == 429 or "429" in str(e)
+            if is_rate_limit and attempt < 3:
+                wait = 2 ** attempt
+                print(f"    [rate limit] router call attempt {attempt} hit 429, retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            break
+
+    if last_error is not None:
+        # Genuinely failed after retries (or a non-retryable error) --
+        # fail safe into out_of_scope rather than crashing the agent.
         return RoutingDecision(
             route=RouteType.OUT_OF_SCOPE,
             tickers=[],
-            reasoning=f"Router failed to produce a valid classification ({type(e).__name__}); failing safe.",
+            reasoning=f"Router failed to produce a valid classification ({type(last_error).__name__}); failing safe.",
         )
 
     # Validate tickers against our known list -- if the model

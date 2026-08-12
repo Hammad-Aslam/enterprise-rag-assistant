@@ -1,0 +1,11 @@
+query,expected_route,actual_route,route_match,http_status,latency_seconds,confidence_level,answer_length,dollar_check,citation_check,error
+What was Apple's total revenue and net income?,document_query,document_query,True,200,20.21,high,166,pass,pass,
+What did AMD say about AI chip demand?,document_query,document_query,True,200,10.72,medium,1119,n/a,pass,
+Tell me about Adobe's business segments,document_query,document_query,True,200,10.02,high,955,n/a,pass,
+What's NVIDIA's current stock price?,live_data_query,live_data_query,True,200,5.12,high,53,pass,pass,
+What's Microsoft's market cap right now?,live_data_query,live_data_query,True,200,3.7,high,50,pass,pass,
+What's PANW trading at?,live_data_query,live_data_query,True,200,3.92,high,50,pass,pass,
+How does AMD's current market cap compare to what they reported around a year ago?,hybrid_query,hybrid_query,True,200,9.97,low,1467,n/a,pass,
+Is Uber's stock price today higher than what they projected in their last annual report?,hybrid_query,hybrid_query,True,200,9.37,high,767,n/a,pass,
+What's the weather like in San Francisco?,out_of_scope,out_of_scope,True,200,2.67,n/a,348,n/a,n/a,
+What is Tesla's revenue?,out_of_scope,out_of_scope,True,200,2.7,n/a,348,n/a,n/a,

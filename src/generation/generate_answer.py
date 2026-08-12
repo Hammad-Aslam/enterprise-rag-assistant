@@ -38,21 +38,45 @@ GENERATION_MODEL = "llama-3.3-70b-versatile"
 CITATION_PATTERN = re.compile(r"\[SOURCE:\s*(\d+)\]")
 
 
-def generate_completion(prompt: str, system_prompt: str, max_tokens: int = 1024) -> str:
+def generate_completion(
+    prompt: str, system_prompt: str, max_tokens: int = 1024, max_attempts: int = 3
+) -> str:
+    """Retries on rate-limit errors (429) with exponential backoff --
+    same resilience pattern used for Qdrant upserts in Project 1.
+    Discovered as a real need via end-to-end testing: back-to-back
+    queries (each making 2-4 LLM calls across routing, rewriting,
+    generation, and synthesis) can hit Groq's free-tier rate limit,
+    especially for hybrid queries which are the most LLM-call-heavy
+    path."""
     if not GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY not set.")
 
     client = Groq(api_key=GROQ_API_KEY)
-    response = client.chat.completions.create(
-        model=GENERATION_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max_tokens,
-        temperature=0.1,
-    )
-    return response.choices[0].message.content
+
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.chat.completions.create(
+                model=GENERATION_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.1,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = e
+            is_rate_limit = getattr(e, "status_code", None) == 429 or "429" in str(e)
+            if is_rate_limit and attempt < max_attempts:
+                wait = 2 ** attempt  # 2s, 4s
+                print(f"    [rate limit] Groq call attempt {attempt} hit 429, retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise last_error
+
+    raise last_error
 
 
 def rewrite_query(original_query: str) -> str:
